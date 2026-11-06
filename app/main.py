@@ -4,6 +4,17 @@ from fastapi import FastAPI
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.staticfiles import StaticFiles
 
+import os
+import secrets
+
+import requests
+from dotenv import load_dotenv
+from fastapi import Header, HTTPException
+
+from app.services.wazuh import WazuhClient
+
+load_dotenv()
+
 BASE_DIR = Path(__file__).resolve().parent
 
 app = FastAPI(
@@ -42,3 +53,39 @@ def home():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/api/alerts")
+def get_alerts(
+    x_soar_token: str = Header(default=""),
+    min_level: int = 7,
+    limit: int = 20,
+):
+    expected_token = os.environ.get("SOAR_API_TOKEN", "")
+
+    if not expected_token or not secrets.compare_digest(
+        x_soar_token, expected_token
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized",
+        )
+
+    if not 7 <= min_level <= 16 or not 1 <= limit <= 100:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid query parameters",
+        )
+
+    try:
+        client = WazuhClient()
+        return client.get_alerts(
+            min_level=min_level,
+            limit=limit,
+        )
+    except (requests.RequestException, ValueError, KeyError):
+        raise HTTPException(
+            status_code=502,
+            detail="Wazuh Indexer request failed",
+        )
+
