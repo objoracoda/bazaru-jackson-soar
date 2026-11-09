@@ -12,6 +12,8 @@ from app.services.database import (
     get_incidents,
     save_alerts,
     update_incident_status,
+    get_incident_report,
+    save_incident_report,
 )
 from app.services.wazuh import WazuhClient
 
@@ -205,6 +207,7 @@ def incident_detail(request: Request, incident_id: int):
     if incident is None:
         raise HTTPException(status_code=404, detail="Incident not found")
 
+    report = get_incident_report(incident_id)
     raw_event = None
     wazuh_error = None
 
@@ -226,6 +229,7 @@ def incident_detail(request: Request, incident_id: int):
         {
             "incident": incident,
             "raw_event": raw_event,
+            "report": report,
             "wazuh_error": wazuh_error,
             "history": get_incident_history(incident_id),
             "csrf_token": request.session["csrf_token"],
@@ -283,3 +287,48 @@ def set_incident_status_from_detail(
         f"/panel/incidents/{incident_id}",
         status_code=303,
     )
+
+
+@router.post("/panel/incidents/{incident_id}/report")
+def save_report_from_panel(
+    request: Request,
+    incident_id: int,
+    description: str = Form(""),
+    investigation: str = Form(""),
+    verdict: str = Form("undetermined"),
+    conclusion: str = Form(""),
+    csrf_token: str = Form(...),
+):
+    if not authorized(request):
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized",
+        )
+
+    check_csrf(request, csrf_token)
+
+    try:
+        saved = save_incident_report(
+            incident_id=incident_id,
+            description=description,
+            investigation=investigation,
+            verdict=verdict,
+            conclusion=conclusion,
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid incident report",
+        )
+
+    if not saved:
+        raise HTTPException(
+            status_code=404,
+            detail="Incident not found",
+        )
+
+    return RedirectResponse(
+        f"/panel/incidents/{incident_id}?saved=1",
+        status_code=303,
+    )
+

@@ -255,3 +255,64 @@ textarea {
   color: #38bdf8;
   text-decoration: underline;
 }
+
+.raw-event-details summary {
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  list-style-position: inside;
+}
+
+.raw-event-details summary span {
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: normal;
+}
+
+.raw-event-details .json-view {
+  max-height: 220px;
+  margin-top: 18px;
+}
+
+.report-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.report-form label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #cbd5e1;
+  margin-top: 12px;
+}
+
+.report-form textarea {
+  width: 100%;
+  padding: 16px;
+  line-height: 1.7;
+  background: #0b1220;
+  border: 1px solid #35445a;
+  border-radius: 9px;
+  color: #e5eaf2;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.report-form textarea:focus,
+.report-form select:focus {
+  outline: 2px solid #38bdf8;
+}
+
+.report-form select {
+  width: 100%;
+  max-width: 340px;
+}
+
+.report-form .btn {
+  margin-top: 14px;
+  align-self: flex-start;
+}

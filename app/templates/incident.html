@@ -67,29 +67,88 @@
       </form>
     </section>
 
-    <section class="panel detail-section">
-      <h2>Исходное событие Wazuh</h2>
-      {% if raw_event %}
-        <pre class="json-view">{{ raw_event | tojson(indent=2) }}</pre>
-      {% else %}
-        <p class="muted">{{ wazuh_error or "Нет данных" }}</p>
-      {% endif %}
-    </section>
+<section class="panel detail-section">
+  <details class="raw-event-details">
+    <summary>
+      <strong>Исходное событие Wazuh</strong>
+      <span>Нажми, чтобы посмотреть JSON</span>
+    </summary>
 
-    <section class="panel detail-section">
-      <h2>Комментарий аналитика</h2>
-      <form method="post"
-            action="/panel/incidents/{{ incident.id }}/comment">
-        <input type="hidden" name="csrf_token"
-               value="{{ csrf_token }}">
-        <textarea name="comment" rows="4" maxlength="2000"
-                  placeholder="Что проверено? Какие выводы сделаны?"
-                  required></textarea>
-        <button type="submit" class="btn primary">
-          Добавить комментарий
-        </button>
-      </form>
-    </section>
+    {% if raw_event %}
+      <pre class="json-view">{{ raw_event | tojson(indent=2) }}</pre>
+    {% else %}
+      <p class="muted">
+        {{ wazuh_error or "Исходное событие недоступно" }}
+      </p>
+    {% endif %}
+  </details>
+</section>
+
+
+<section class="panel detail-section">
+  <h2>Карточка расследования</h2>
+  <p class="muted">
+    Заполни обстоятельства обнаружения, результаты проверки
+    и итоговый вердикт.
+  </p>
+
+  {% if request.query_params.get("saved") == "1" %}
+    <div class="notice">Карточка успешно сохранена</div>
+  {% endif %}
+
+  <form method="post"
+        action="/panel/incidents/{{ incident.id }}/report"
+        class="report-form">
+
+    <input type="hidden" name="csrf_token"
+           value="{{ csrf_token }}">
+
+    <label for="description">1. Описание события</label>
+    <textarea id="description"
+              name="description"
+              rows="5"
+              maxlength="10000"
+              required>{% if report %}{{ report.description }}{% else %}{{ incident.event_time or "Неизвестное время" }} на хосте {{ incident.agent or "Неизвестный хост" }} зафиксировано событие: {{ incident.description or "Без описания" }}. Сработало правило Wazuh {{ incident.rule_id }} (Level {{ incident.level }}).{% endif %}</textarea>
+
+    <label for="investigation">2. Ход расследования</label>
+    <textarea id="investigation"
+              name="investigation"
+              rows="8"
+              maxlength="10000"
+              placeholder="Какие логи, процессы, соединения и другие индикаторы проверены? Какие результаты получены?"
+              required>{{ report.investigation if report else "" }}</textarea>
+
+    <label for="verdict">3. Вердикт аналитика</label>
+    <select id="verdict" name="verdict">
+      {% set current = report.verdict if report else "undetermined" %}
+      <option value="undetermined"
+        {% if current == "undetermined" %}selected{% endif %}>
+        Требует расследования
+      </option>
+      <option value="true_positive"
+        {% if current == "true_positive" %}selected{% endif %}>
+        True Positive
+      </option>
+      <option value="false_positive"
+        {% if current == "false_positive" %}selected{% endif %}>
+        False Positive
+      </option>
+    </select>
+
+    <label for="conclusion">4. Итоговое заключение</label>
+    <textarea id="conclusion"
+              name="conclusion"
+              rows="5"
+              maxlength="10000"
+              placeholder="Обоснование вердикта, итог расследования и необходимые дальнейшие действия."
+              required>{{ report.conclusion if report else "" }}</textarea>
+
+    <button type="submit" class="btn primary">
+      Сохранить карточку расследования
+    </button>
+  </form>
+</section>
+
 
     <section class="panel detail-section">
       <h2>История расследования</h2>

@@ -23,26 +23,40 @@ def init_db():
                     description TEXT,
                     event_time TEXT,
                     status TEXT NOT NULL DEFAULT 'new'
-                        CHECK (status IN (
-                            'new', 'in_progress', 'closed'
-                        )),
-                    imported_at TEXT NOT NULL
-                        DEFAULT CURRENT_TIMESTAMP,
+                        CHECK (status IN ('new', 'in_progress', 'closed')),
+                    imported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE(wazuh_index, wazuh_id)
                 )
-            """),
-            conn.execute("""
-    CREATE TABLE IF NOT EXISTS incident_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        incident_id INTEGER NOT NULL,
-        action TEXT NOT NULL,
-        old_value TEXT,
-        new_value TEXT,
-        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (incident_id) REFERENCES alerts(id)
-    )
-""")
+            """)
 
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS incident_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    incident_id INTEGER NOT NULL,
+                    action TEXT NOT NULL,
+                    old_value TEXT,
+                    new_value TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (incident_id) REFERENCES alerts(id)
+                )
+            """)
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS incident_reports (
+                    incident_id INTEGER PRIMARY KEY,
+                    description TEXT NOT NULL DEFAULT '',
+                    investigation TEXT NOT NULL DEFAULT '',
+                    verdict TEXT NOT NULL DEFAULT 'undetermined'
+                        CHECK (verdict IN (
+                            'undetermined',
+                            'true_positive',
+                            'false_positive'
+                        )),
+                    conclusion TEXT NOT NULL DEFAULT '',
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (incident_id) REFERENCES alerts(id)
+                )
+            """)
 
 def save_alerts(alerts):
     init_db()
@@ -179,6 +193,87 @@ def add_incident_comment(incident_id, comment):
                 )
                 VALUES (?, 'comment', ?)
             """, (incident_id, comment))
+
+    return True
+
+
+def get_incident_report(incident_id):
+    init_db()
+
+    with closing(sqlite3.connect(DB_PATH)) as conn:
+        conn.row_factory = sqlite3.Row
+
+        row = conn.execute("""
+            SELECT *
+            FROM incident_reports
+            WHERE incident_id = ?
+        """, (incident_id,)).fetchone()
+
+        return dict(row) if row else None
+
+
+def save_incident_report(
+    incident_id,
+    description,
+    investigation,
+    verdict,
+    conclusion,
+):
+    if verdict not in (
+        "undetermined",
+        "true_positive",
+        "false_positive",
+    ):
+        raise ValueError("Invalid verdict")
+
+    fields = (description, investigation, conclusion)
+
+    if any(len(value) > 10000 for value in fields):
+        raise ValueError("Report field is too long")
+
+    init_db()
+
+    with closing(sqlite3.connect(DB_PATH)) as conn:
+        conn.execute("PRAGMA foreign_keys = ON")
+
+        with conn:
+            exists = conn.execute(
+                "SELECT 1 FROM alerts WHERE id = ?",
+                (incident_id,),
+            ).fetchone()
+
+            if not exists:
+                return False
+
+            conn.execute("""
+                INSERT INTO incident_reports (
+                    incident_id, description, investigation,
+                    verdict, conclusion, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(incident_id) DO UPDATE SET
+                    description = excluded.description,
+                    investigation = excluded.investigation,
+                    verdict = excluded.verdict,
+                    conclusion = excluded.conclusion,
+                    updated_at = CURRENT_TIMESTAMP
+            """, (
+                incident_id,
+                description,
+                investigation,
+                verdict,
+                conclusion,
+            ))
+
+            conn.execute("""
+                INSERT INTO incident_history (
+                    incident_id, action, new_value
+                )
+                VALUES (?, 'report_saved', ?)
+            """, (
+                incident_id,
+                f"Incident report saved; verdict: {verdict}",
+            ))
 
     return True
 
