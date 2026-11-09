@@ -54,6 +54,7 @@ class WazuhClient:
 
             alerts.append({
                 "id": hit["_id"],
+                "index": hit["_index"],
                 "agent": agent.get("name"),
                 "rule_id": rule.get("id"),
                 "level": rule.get("level"),
