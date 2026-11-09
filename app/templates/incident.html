@@ -1,0 +1,115 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Расследование #{{ incident.id }} | Bazaru Jackson SOAR</title>
+  <link rel="stylesheet" href="/static/soar.css">
+</head>
+<body>
+  <main class="incident-page">
+    <a href="/panel" class="back-link">← Назад к очереди</a>
+
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">BAZARU JACKSON / INVESTIGATION</p>
+        <h1>Расследование #{{ incident.id }}</h1>
+        <p class="muted">{{ incident.description }}</p>
+      </div>
+      <span class="level
+        {% if incident.level >= 12 %}critical
+        {% elif incident.level >= 10 %}high
+        {% else %}medium{% endif %}">
+        Level {{ incident.level }}
+      </span>
+    </header>
+
+    <section class="detail-grid">
+      <div class="detail-field">
+        <span>Агент</span>
+        <strong>{{ incident.agent or "Unknown" }}</strong>
+      </div>
+      <div class="detail-field">
+        <span>Rule ID</span>
+        <strong>{{ incident.rule_id }}</strong>
+      </div>
+      <div class="detail-field">
+        <span>Время события (UTC)</span>
+        <strong>{{ incident.event_time or "—" }}</strong>
+      </div>
+      <div class="detail-field">
+        <span>Статус</span>
+        <strong>{{ incident.status }}</strong>
+      </div>
+    </section>
+
+    <section class="panel detail-section">
+      <h2>Управление расследованием</h2>
+      <form method="post"
+            action="/panel/incidents/{{ incident.id }}/set-status"
+            class="detail-form">
+        <input type="hidden" name="csrf_token"
+               value="{{ csrf_token }}">
+        <select name="status">
+          {% for value, label in [
+              ("new", "New"),
+              ("in_progress", "In progress"),
+              ("closed", "Closed")
+          ] %}
+          <option value="{{ value }}"
+            {% if incident.status == value %}selected{% endif %}>
+            {{ label }}
+          </option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn primary">Сохранить статус</button>
+      </form>
+    </section>
+
+    <section class="panel detail-section">
+      <h2>Исходное событие Wazuh</h2>
+      {% if raw_event %}
+        <pre class="json-view">{{ raw_event | tojson(indent=2) }}</pre>
+      {% else %}
+        <p class="muted">{{ wazuh_error or "Нет данных" }}</p>
+      {% endif %}
+    </section>
+
+    <section class="panel detail-section">
+      <h2>Комментарий аналитика</h2>
+      <form method="post"
+            action="/panel/incidents/{{ incident.id }}/comment">
+        <input type="hidden" name="csrf_token"
+               value="{{ csrf_token }}">
+        <textarea name="comment" rows="4" maxlength="2000"
+                  placeholder="Что проверено? Какие выводы сделаны?"
+                  required></textarea>
+        <button type="submit" class="btn primary">
+          Добавить комментарий
+        </button>
+      </form>
+    </section>
+
+    <section class="panel detail-section">
+      <h2>История расследования</h2>
+      {% for entry in history %}
+        <div class="history-entry">
+          <div class="history-time">{{ entry.created_at }} UTC</div>
+
+          {% if entry.action == "status_changed" %}
+            <strong>Изменение статуса</strong>
+            <p>{{ entry.old_value }} → {{ entry.new_value }}</p>
+          {% elif entry.action == "comment" %}
+            <strong>Комментарий аналитика</strong>
+            <p class="comment-text">{{ entry.new_value }}</p>
+          {% endif %}
+        </div>
+      {% else %}
+        <p class="muted">Действий пока нет.</p>
+      {% endfor %}
+    </section>
+  </main>
+</body>
+</html>
+

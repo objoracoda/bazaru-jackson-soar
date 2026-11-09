@@ -4,6 +4,8 @@ import os
 import requests
 from requests.auth import HTTPBasicAuth
 
+import re
+from urllib.parse import quote
 
 class WazuhClient:
     def __init__(self):
@@ -11,6 +13,30 @@ class WazuhClient:
         self.username = os.environ["WAZUH_INDEXER_USER"]
         self.password = os.environ["WAZUH_INDEXER_PASSWORD"]
         self.ca_cert = os.environ["WAZUH_CA_CERT"]
+
+    
+    def get_alert_document(self, index: str, document_id: str):
+        if not re.fullmatch(
+            r"wazuh-alerts-[A-Za-z0-9._-]+", index
+        ):
+            raise ValueError("Invalid Wazuh index")
+
+        safe_id = quote(document_id, safe="")
+        endpoint = f"{self.url}/{index}/_doc/{safe_id}"
+
+        response = requests.get(
+            endpoint,
+            auth=HTTPBasicAuth(self.username, self.password),
+            verify=self.ca_cert,
+            timeout=15,
+        )
+
+        if response.status_code == 404:
+            return None
+
+        response.raise_for_status()
+        return response.json().get("_source")
+
 
     def get_alerts(self, min_level: int = 7, limit: int = 20):
         endpoint = f"{self.url}/wazuh-alerts-*/_search"

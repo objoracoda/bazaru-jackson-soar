@@ -1,0 +1,192 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Incident Queue | Bazaru Jackson SOAR</title>
+  <link rel="stylesheet" href="/static/soar.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-icon">BJ</span>
+        <div>
+          <strong>BAZARU JACKSON</strong>
+          <small>SOAR PLATFORM</small>
+        </div>
+      </div>
+
+      <div class="nav-active">▣ &nbsp; Incident Queue</div>
+      <div class="nav-disabled">◉ &nbsp; AI Analysis — скоро</div>
+      <div class="nav-disabled">⚙ &nbsp; Settings — скоро</div>
+
+      <form method="post" action="/logout" class="logout">
+        <input type="hidden" name="csrf_token"
+               value="{{ csrf_token }}">
+        <button type="submit" class="btn secondary full">
+          Выйти
+        </button>
+      </form>
+    </aside>
+
+    <main class="content">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">SECURITY OPERATIONS</p>
+          <h1>Incident Queue</h1>
+          <p class="muted">
+            События Wazuh с уровнем критичности 7+
+          </p>
+        </div>
+
+        <form method="post" action="/panel/sync">
+          <input type="hidden" name="csrf_token"
+                 value="{{ csrf_token }}">
+          <button class="btn primary" type="submit">
+            ↻ Синхронизировать
+          </button>
+        </form>
+      </header>
+
+      {% if notice == "updated" %}
+        <div class="notice">Статус обновлён</div>
+      {% elif notice == "sync_error" %}
+        <div class="notice error">Ошибка подключения к Wazuh</div>
+      {% elif notice.startswith("imported_") %}
+        <div class="notice">
+          Новых алертов импортировано:
+          {{ notice.split("_")[-1] }}
+        </div>
+      {% endif %}
+
+      <section class="stats">
+        <article class="stat">
+          <span>Всего в выборке</span>
+          <strong>{{ counts.total }}</strong>
+        </article>
+        <article class="stat">
+          <span>Новые</span>
+          <strong>{{ counts.new }}</strong>
+        </article>
+        <article class="stat">
+          <span>В работе</span>
+          <strong>{{ counts.in_progress }}</strong>
+        </article>
+        <article class="stat">
+          <span>Закрытые</span>
+          <strong>{{ counts.closed }}</strong>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>Алерты</h2>
+          <span class="muted">Последние 100 записей SQLite</span>
+        </div>
+
+        <form class="filters" method="get" action="/panel">
+          <input type="search" name="q" value="{{ search }}"
+                 placeholder="Поиск по агенту, правилу, описанию">
+
+          <select name="status">
+            <option value="">Все статусы</option>
+            <option value="new"
+              {% if status_filter == "new" %}selected{% endif %}>
+              New
+            </option>
+            <option value="in_progress"
+              {% if status_filter == "in_progress" %}selected{% endif %}>
+              In progress
+            </option>
+            <option value="closed"
+              {% if status_filter == "closed" %}selected{% endif %}>
+              Closed
+            </option>
+          </select>
+
+          <button class="btn secondary" type="submit">
+            Фильтровать
+          </button>
+        </form>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Источник</th>
+                <th>Событие</th>
+                <th>Level</th>
+                <th>Время (UTC)</th>
+                <th>Статус</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for alert in alerts %}
+              <tr>
+                <td class="muted">#{{ alert.id }}</td>
+                <td>{{ alert.agent or "Unknown" }}</td>
+                <td>
+                  <a class="incident-link"
+   href="/panel/incidents/{{ alert.id }}">
+  {{ alert.description }}
+</a>
+                  <small>Rule {{ alert.rule_id }}</small>
+                </td>
+                <td>
+                  <span class="level
+                    {% if alert.level >= 12 %}critical
+                    {% elif alert.level >= 10 %}high
+                    {% else %}medium{% endif %}">
+                    {{ alert.level }}
+                  </span>
+                </td>
+                <td class="muted">
+                  {{ alert.event_time[:19].replace("T", " ")
+                     if alert.event_time else "—" }}
+                </td>
+                <td>
+                  <form method="post"
+                        action="/panel/incidents/{{ alert.id }}/status">
+                    <input type="hidden" name="csrf_token"
+                           value="{{ csrf_token }}">
+                    <select name="status"
+                            aria-label="Статус алерта {{ alert.id }}"
+                            onchange="this.form.requestSubmit()">
+                      <option value="new"
+                        {% if alert.status == "new" %}selected{% endif %}>
+                        New
+                      </option>
+                      <option value="in_progress"
+                        {% if alert.status == "in_progress" %}selected{% endif %}>
+                        In progress
+                      </option>
+                      <option value="closed"
+                        {% if alert.status == "closed" %}selected{% endif %}>
+                        Closed
+                      </option>
+                    </select>
+                    <noscript>
+                      <button type="submit">Сохранить</button>
+                    </noscript>
+                  </form>
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="6" class="empty">
+                  Нет алертов для выбранных фильтров
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
+

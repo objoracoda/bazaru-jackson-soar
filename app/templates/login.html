@@ -1,0 +1,32 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Вход | Bazaru Jackson SOAR</title>
+  <link rel="stylesheet" href="/static/soar.css">
+</head>
+<body class="login-body">
+  <div class="login-card">
+    <div class="brand-icon">BJ</div>
+    <h1>Bazaru Jackson SOAR</h1>
+    <p class="muted">Security Operations Center</p>
+
+    {% if error %}
+      <div class="notice error">Неверный пароль</div>
+    {% endif %}
+
+    <form method="post" action="/login">
+      <label for="password">Пароль аналитика</label>
+      <input id="password" name="password"
+             type="password" autocomplete="current-password"
+             required autofocus>
+      <button class="btn primary full" type="submit">
+        Войти в систему
+      </button>
+    </form>
+  </div>
+</body>
+</html>
+
