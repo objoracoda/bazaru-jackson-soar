@@ -1,7 +1,30 @@
-.venv/
-__pycache__/
-*.pyc
+# Secrets and certificates
 .env
+.env.*
+!.env.example
+certs/
+
+# Database and experimental data
+data/
 *.db
-*.sqlite3
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
 .pytest_cache/
+
+# Local backups
+*.backup
+*.py.backup
+*.html.backup
+*.bak
+
+# Editor and temporary files
+*.swp
+*.swo
+*~

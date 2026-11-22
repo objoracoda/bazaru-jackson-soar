@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -6,169 +5,137 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Расследование #{{ incident.id }} | Bazaru Jackson SOAR</title>
   <link rel="stylesheet" href="/static/soar.css">
+  <style>
+    .ai-section{border:1px solid #2563eb}.ai-preview,.ai-result-field,.risk-panel{margin:14px 0;padding:16px;background:#0b1220;border:1px solid #35445a;border-radius:9px}
+    .ai-preview pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;font-size:12px;line-height:1.6}
+    .ai-result-field textarea,.report-form textarea,.tuning-xml{width:100%;box-sizing:border-box;background:#0b1220;color:#e5eaf2;padding:14px;border:1px solid #35445a;border-radius:8px;font:inherit;line-height:1.6}
+    .ai-result-field label,.report-form label{display:block;margin:14px 0 7px;font-weight:600}.muted-note{color:#94a3b8;font-size:13px}
+    .ai-warning{border:1px solid #b45309;padding:13px;border-radius:8px;margin:13px 0;color:#fcd34d}.ai-success{border:1px solid #0891b2;padding:13px;border-radius:8px;margin:13px 0}
+    .risk-track{height:12px;background:#334155;border-radius:10px;overflow:hidden}.risk-fill{height:100%;background:#eab308}
+    .risk-high{color:#fca5a5}.risk-low{color:#86efac}.ai-consent{display:flex;gap:10px;align-items:flex-start;margin:14px 0}
+    .risk-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.risk-cols>div{padding:12px;background:#111f31;border-radius:9px}
+    .report-form{display:flex;flex-direction:column;gap:8px}.report-form select{max-width:360px}
+    .tuning-xml{height:260px;font-family:monospace;font-size:12px;white-space:pre;overflow:auto}
+  </style>
 </head>
 <body>
-  <main class="incident-page">
-    <a href="/panel" class="back-link">← Назад к очереди</a>
-
-    <header class="page-header">
-      <div>
-        <p class="eyebrow">BAZARU JACKSON / INVESTIGATION</p>
-        <h1>Расследование #{{ incident.id }}</h1>
-        <p class="muted">{{ incident.description }}</p>
+<main class="incident-page">
+  <a class="back-link" href="/panel">← Назад к очереди</a>
+  <header class="page-header"><div><p class="eyebrow">BAZARU JACKSON / INVESTIGATION</p>
+    <h1>Расследование #{{ incident.id }}</h1><p class="muted">{{ incident.description }}</p></div>
+    <span class="level {% if incident.level >= 12 %}critical{% elif incident.level >= 10 %}high{% else %}medium{% endif %}">Level {{ incident.level }}</span></header>
+  <section class="detail-grid">
+    <div class="detail-field"><span>Агент</span><strong>{{ incident.agent or '—' }}</strong></div>
+    <div class="detail-field"><span>Rule ID</span><strong>{{ incident.rule_id }}</strong></div>
+    <div class="detail-field"><span>Время UTC</span><strong>{{ incident.event_time or '—' }}</strong></div>
+    <div class="detail-field"><span>Статус</span><strong>{{ incident.status }}</strong></div>
+  </section>
+  <section class="panel detail-section"><h2>Управление расследованием</h2>
+    <form method="post" action="/panel/incidents/{{ incident.id }}/set-status" class="detail-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <select name="status">{% for value,label in [('new','New'),('in_progress','In progress'),('closed','Closed')] %}
+        <option value="{{ value }}" {% if incident.status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+      <button type="submit" class="btn primary">Сохранить статус</button>
+    </form>
+  </section>
+  <section class="panel detail-section"><details class="raw-event-details"><summary><strong>Исходное событие Wazuh</strong> — полный JSON</summary>
+    {% if raw_event %}<pre class="json-view">{{ raw_event | tojson(indent=2) }}</pre>{% else %}<p class="muted">{{ wazuh_error }}</p>{% endif %}
+  </details></section>
+  <section class="panel detail-section ai-section" id="ai-assistant">
+    <p class="eyebrow">BAZARU JACKSON / EVIDENCE-BASED AI</p><h2>Анализ и оценка риска — GroqCloud</h2>
+    <p class="muted-note">Модель оценивает риск эвристически: число от 0 до 100 не является статистически доказанной вероятностью атаки. Решение о реагировании принимает аналитик.</p>
+    <details class="ai-preview" open><summary><strong>Данные, отправляемые GroqCloud</strong></summary>
+      <pre id="ai-context-preview">{{ ai_context | tojson(indent=2) }}</pre></details>
+    <form method="post" action="/panel/incidents/{{ incident.id }}/ai-analyze">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="snapshot_id" value="{{ snapshot_id }}">
+      <label class="ai-consent"><input type="checkbox" name="consent" value="yes" required>
+        <span>Я проверил этот контекст и разрешаю передать его внешнему сервису GroqCloud.</span></label>
+      <button class="btn primary" type="submit">Анализировать событие и оценить риск</button>
+    </form>
+    {% if ai_error %}<div class="ai-warning"><strong>Ошибка:</strong> {{ ai_error }}</div>{% endif %}
+    {% if ai_result %}
+      <div class="ai-success"><strong>AI-анализ получен.</strong> Информация не заменяет проверку аналитика.</div>
+      <div class="risk-panel">
+        <h3>Оценка риска <span class="{% if ai_result.risk_score > 80 %}risk-high{% elif ai_result.risk_score < 40 %}risk-low{% endif %}">{{ ai_result.risk_score }}/100</span></h3>
+        <div class="risk-track"><div class="risk-fill" style="width:{{ ai_result.risk_score }}%;{% if ai_result.risk_score > 80 %}background:#ef4444{% elif ai_result.risk_score < 40 %}background:#16a34a{% endif %}"></div></div>
+        <p class="muted-note">Уверенность: {{ ai_result.confidence }} | Полнота свидетельств: {{ ai_result.evidence_completeness }} | Предварительный вердикт: {{ ai_result.verdict }}</p>
+        <strong>Рекомендация:</strong><p>{{ ai_result.response_recommendation }}</p>
+        <div class="risk-cols"><div><strong>Признаки штатной активности</strong><ul>{% for s in ai_result.benign_indicators %}<li>{{ s }}</li>{% else %}<li>Не подтверждены</li>{% endfor %}</ul></div>
+          <div><strong>Подозрительные признаки</strong><ul>{% for s in ai_result.suspicious_indicators %}<li>{{ s }}</li>{% else %}<li>Не подтверждены</li>{% endfor %}</ul></div>
+          <div><strong>Недостающие доказательства</strong><ul>{% for s in ai_result.missing_evidence %}<li>{{ s }}</li>{% else %}<li>Не отмечены</li>{% endfor %}</ul></div></div>
       </div>
-      <span class="level
-        {% if incident.level >= 12 %}critical
-        {% elif incident.level >= 10 %}high
-        {% else %}medium{% endif %}">
-        Level {{ incident.level }}
-      </span>
-    </header>
-
-    <section class="detail-grid">
-      <div class="detail-field">
-        <span>Агент</span>
-        <strong>{{ incident.agent or "Unknown" }}</strong>
-      </div>
-      <div class="detail-field">
-        <span>Rule ID</span>
-        <strong>{{ incident.rule_id }}</strong>
-      </div>
-      <div class="detail-field">
-        <span>Время события (UTC)</span>
-        <strong>{{ incident.event_time or "—" }}</strong>
-      </div>
-      <div class="detail-field">
-        <span>Статус</span>
-        <strong>{{ incident.status }}</strong>
-      </div>
-    </section>
-
-    <section class="panel detail-section">
-      <h2>Управление расследованием</h2>
-      <form method="post"
-            action="/panel/incidents/{{ incident.id }}/set-status"
-            class="detail-form">
-        <input type="hidden" name="csrf_token"
-               value="{{ csrf_token }}">
-        <select name="status">
-          {% for value, label in [
-              ("new", "New"),
-              ("in_progress", "In progress"),
-              ("closed", "Closed")
-          ] %}
-          <option value="{{ value }}"
-            {% if incident.status == value %}selected{% endif %}>
-            {{ label }}
-          </option>
-          {% endfor %}
-        </select>
-        <button type="submit" class="btn primary">Сохранить статус</button>
-      </form>
-    </section>
-
-<section class="panel detail-section">
-  <details class="raw-event-details">
-    <summary>
-      <strong>Исходное событие Wazuh</strong>
-      <span>Нажми, чтобы посмотреть JSON</span>
-    </summary>
-
-    {% if raw_event %}
-      <pre class="json-view">{{ raw_event | tojson(indent=2) }}</pre>
-    {% else %}
-      <p class="muted">
-        {{ wazuh_error or "Исходное событие недоступно" }}
-      </p>
+      <div class="ai-result-field"><label>Кратко: что произошло</label><textarea id="ai-summary" rows="3" readonly>{{ ai_result.activity_summary }}</textarea></div>
+      <div class="ai-result-field"><label>Отформатированное описание</label><textarea id="ai-description" rows="10" readonly>{{ ai_result.description }}</textarea></div>
+      <div class="ai-result-field"><label>Рекомендованные проверки</label><textarea id="ai-investigation" rows="7" readonly>{{ ai_result.investigation }}</textarea></div>
+      <input type="hidden" id="ai-verdict" value="{{ ai_result.verdict }}">
+      <div class="ai-result-field"><label>Предварительное заключение</label><textarea id="ai-conclusion" rows="5" readonly>{{ ai_result.conclusion }}</textarea></div>
+      {% if report %}<div class="ai-warning">Существующий отчёт сохранён: он не будет переписан автоматически.</div>{% else %}
+        <div class="ai-success">Поля новой карточки автоматически заполнены черновиком. Проверь их и сохрани вручную.</div>{% endif %}
+      <button type="button" class="btn primary" onclick="applyAIResult(true)">Перенести черновик в карточку</button>
+    {% elif review %}
+      <div class="risk-panel"><strong>Последняя сохранённая AI-оценка: {{ review.result.risk_score }}/100</strong><p class="muted-note">{{ review.created_at }} UTC · Уверенность: {{ review.result.confidence }} · Полнота: {{ review.result.evidence_completeness }}</p><p>{{ review.result.response_recommendation }}</p><p class="muted-note">Для нового редактируемого черновика запусти анализ снова.</p></div>
     {% endif %}
-  </details>
-</section>
-
-
-<section class="panel detail-section">
-  <h2>Карточка расследования</h2>
-  <p class="muted">
-    Заполни обстоятельства обнаружения, результаты проверки
-    и итоговый вердикт.
-  </p>
-
-  {% if request.query_params.get("saved") == "1" %}
-    <div class="notice">Карточка успешно сохранена</div>
+  </section>
+  <section class="panel detail-section" id="analyst-report"><h2>Карточка расследования аналитика</h2>
+    {% if request.query_params.get('saved') == '1' %}<div class="ai-success">Карточка сохранена.</div>{% endif %}
+    <form method="post" action="/panel/incidents/{{ incident.id }}/report" class="report-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label for="description">1. Описание события</label><textarea id="description" name="description" rows="10" maxlength="10000" required>{% if report %}{{ report.description }}{% else %}{{ incident.event_time or 'Время не указано' }} на хосте {{ incident.agent }}: {{ incident.description }} (Rule {{ incident.rule_id }}, Level {{ incident.level }}).{% endif %}</textarea>
+      <label for="investigation">2. Проверки и результаты</label><textarea id="investigation" name="investigation" rows="8" maxlength="10000" required placeholder="Отделяй предложенные AI проверки от фактически выполненных">{{ report.investigation if report else '' }}</textarea>
+      <label for="verdict">3. Вердикт аналитика</label><select id="verdict" name="verdict">
+      {% set v = report.verdict if report else 'undetermined' %}
+      {% for key, name in [('undetermined','Требует расследования'),('true_positive','True Positive'),('false_positive','False Positive')] %}
+      <option value="{{ key }}" {% if v == key %}selected{% endif %}>{{ name }}</option>{% endfor %}</select>
+      <label for="conclusion">4. Итоговое заключение</label><textarea id="conclusion" name="conclusion" rows="5" maxlength="10000" required>{{ report.conclusion if report else '' }}</textarea>
+      <button type="submit" class="btn primary">Сохранить карточку расследования</button>
+    </form>
+  </section>
+  <section class="panel detail-section" id="tuning"><h2>AI Detection Tuning — XML-исключение Wazuh</h2>
+    <p class="muted-note">Только после подтверждения False Positive аналитиком и минимум трёх подтверждённых FP с тем же Rule ID и агентом. Совпадение этих двух полей само по себе не доказывает одинаковую причину срабатываний.</p>
+    <p>Подтверждённых FP для Rule {{ incident.rule_id }} / {{ incident.agent }}: <strong>{{ fp_count }}</strong></p>
+    {% if report and report.verdict == 'false_positive' and fp_count >= 3 %}
+      <form method="post" action="/panel/incidents/{{ incident.id }}/tuning">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>Свободный ID правила: <input type="number" name="rule_id" min="100000" max="119999" value="100201" required></label>
+        <button class="btn primary" type="submit">Предложить узкое XML-исключение</button>
+      </form>
+    {% else %}<p class="ai-warning">Генерация пока недоступна: необходим подтверждённый FP и достаточное число однотипных расследований.</p>{% endif %}
+    {% if tuning %}
+      <h3>Черновик XML (НЕ установлен)</h3>
+      <textarea id="tuning-xml" class="tuning-xml" readonly>{{ tuning.xml }}</textarea>
+      <button type="button" class="btn primary" onclick="navigator.clipboard.writeText(document.getElementById('tuning-xml').value)">Копировать XML</button>
+      <p class="muted-note">{{ tuning.rationale }}</p>
+      <p class="muted-note">Не вставляй полный блок &lt;group&gt; внутрь уже открытого &lt;group&gt;. Проверь свободный Rule ID, протестируй Wazuh-logtest на штатном и подозрительном примерах, предусмотрев откат.</p>
+    {% endif %}
+  </section>
+  <section class="panel detail-section"><h2>История расследования</h2>
+    {% for entry in history %}<div class="history-entry"><div class="history-time">{{ entry.created_at }} UTC</div>
+      {% if entry.action == 'status_changed' %}<strong>Изменение статуса</strong><p>{{ entry.old_value }} → {{ entry.new_value }}</p>
+      {% elif entry.action == 'comment' %}<strong>Комментарий</strong><p>{{ entry.new_value }}</p>
+      {% elif entry.action == 'report_saved' %}<strong>Карточка обновлена</strong><p>{{ entry.new_value }}</p>
+      {% else %}<strong>{{ entry.action }}</strong>{% endif %}</div>
+    {% else %}<p class="muted">Действий пока нет.</p>{% endfor %}
+  </section>
+</main>
+<script>
+  (function () {
+    const preview = document.getElementById('ai-context-preview');
+    if (preview) { try { preview.textContent = JSON.stringify(JSON.parse(preview.textContent), null, 2); } catch (_) {} }
+  })();
+  {% if ai_result %}
+  function applyAIResult(confirmFirst) {
+    if (confirmFirst && !window.confirm('Перезаписать текущие поля черновиком ИИ? Несохранённые правки будут потеряны.')) return;
+    for (const name of ['description', 'investigation', 'verdict', 'conclusion']) {
+      const from = document.getElementById('ai-' + name);
+      const to = document.getElementById(name);
+      if (from && to) to.value = from.value;
+    }
+    if (confirmFirst) document.getElementById('analyst-report').scrollIntoView({behavior:'smooth'});
+  }
+  {% if not report %}applyAIResult(false);{% endif %}
   {% endif %}
-
-  <form method="post"
-        action="/panel/incidents/{{ incident.id }}/report"
-        class="report-form">
-
-    <input type="hidden" name="csrf_token"
-           value="{{ csrf_token }}">
-
-    <label for="description">1. Описание события</label>
-    <textarea id="description"
-              name="description"
-              rows="5"
-              maxlength="10000"
-              required>{% if report %}{{ report.description }}{% else %}{{ incident.event_time or "Неизвестное время" }} на хосте {{ incident.agent or "Неизвестный хост" }} зафиксировано событие: {{ incident.description or "Без описания" }}. Сработало правило Wazuh {{ incident.rule_id }} (Level {{ incident.level }}).{% endif %}</textarea>
-
-    <label for="investigation">2. Ход расследования</label>
-    <textarea id="investigation"
-              name="investigation"
-              rows="8"
-              maxlength="10000"
-              placeholder="Какие логи, процессы, соединения и другие индикаторы проверены? Какие результаты получены?"
-              required>{{ report.investigation if report else "" }}</textarea>
-
-    <label for="verdict">3. Вердикт аналитика</label>
-    <select id="verdict" name="verdict">
-      {% set current = report.verdict if report else "undetermined" %}
-      <option value="undetermined"
-        {% if current == "undetermined" %}selected{% endif %}>
-        Требует расследования
-      </option>
-      <option value="true_positive"
-        {% if current == "true_positive" %}selected{% endif %}>
-        True Positive
-      </option>
-      <option value="false_positive"
-        {% if current == "false_positive" %}selected{% endif %}>
-        False Positive
-      </option>
-    </select>
-
-    <label for="conclusion">4. Итоговое заключение</label>
-    <textarea id="conclusion"
-              name="conclusion"
-              rows="5"
-              maxlength="10000"
-              placeholder="Обоснование вердикта, итог расследования и необходимые дальнейшие действия."
-              required>{{ report.conclusion if report else "" }}</textarea>
-
-    <button type="submit" class="btn primary">
-      Сохранить карточку расследования
-    </button>
-  </form>
-</section>
-
-
-    <section class="panel detail-section">
-      <h2>История расследования</h2>
-      {% for entry in history %}
-        <div class="history-entry">
-          <div class="history-time">{{ entry.created_at }} UTC</div>
-
-          {% if entry.action == "status_changed" %}
-            <strong>Изменение статуса</strong>
-            <p>{{ entry.old_value }} → {{ entry.new_value }}</p>
-          {% elif entry.action == "comment" %}
-            <strong>Комментарий аналитика</strong>
-            <p class="comment-text">{{ entry.new_value }}</p>
-          {% endif %}
-        </div>
-      {% else %}
-        <p class="muted">Действий пока нет.</p>
-      {% endfor %}
-    </section>
-  </main>
+</script>
 </body>
 </html>
 
